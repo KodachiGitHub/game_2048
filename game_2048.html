@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>2048</title>
+    <link rel="stylesheet" href="game_2048.css">
+</head>
+<body>
+<div class="game-panel">
+    <p>得分：<span class="game-score"></span></p>
+    <p>最大值：<span class="game-max"></span></p>
+    <div class="btn-new">新游戏</div>
+</div>
+<div class="box">
+    <div class="row">
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+    </div>
+    <div class="row">
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+    </div>
+    <div class="row">
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+    </div>
+    <div class="row">
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+        <div class="cell"></div>
+    </div>
+    <div class="num-box">
+
+    </div>
+    <div class="game-over">
+        <p>游戏结束！</p>
+        <div class="btn-reset">重新开始</div>
+    </div>
+</div>
+<script>
+    function randomNum(n,m){
+        let c = m - n + 1;
+        return Math.floor(Math.random() * c + n);
+    }
+
+    let Game = function(option){
+        this.score = option.score || 0;
+        this.maxNum = option.maxNum || 0;
+        this.numbers = option.numbers || [];
+        this.numberBox = option.numberBox;
+        this.scoreEle = option.scoreEle;
+        this.maxEle = option.maxEle;
+        this.newEle = option.newEle;
+        this.resetEle = option.resetEle;
+        this.overEle = option.overEle;
+        this.moveStack = [{
+            keyCode:38,
+            stack:[[[0,0],[1,0],[2,0],[3,0]],[[0,1],[1,1],[2,1],[3,1]],[[0,2],[1,2],[2,2],[3,2]],[[0,3],[1,3],[2,3],[3,3]]]
+        },{
+            keyCode:39,
+            stack:[[[0,3],[0,2],[0,1],[0,0]],[[1,3],[1,2],[1,1],[1,0]],[[2,3],[2,2],[2,1],[2,0]],[[3,3],[3,2],[3,1],[3,0]]]
+        },{
+            keyCode:40,
+            stack:[[[3,0],[2,0],[1,0],[0,0]],[[3,1],[2,1],[1,1],[0,1]],[[3,2],[2,2],[1,2],[0,2]],[[3,3],[2,3],[1,3],[0,3]]]
+        },{
+            keyCode:37,
+            stack:[[[0,0],[0,1],[0,2],[0,3]],[[1,0],[1,1],[1,2],[1,3]],[[2,0],[2,1],[2,2],[2,3]],[[3,0],[3,1],[3,2],[3,3]]]
+        }];
+        this.newGame(false);
+        this.addListener();
+    };
+    Game.prototype = {
+        newGame(flag){
+            //flag 手动重置
+            let that = this;
+            //新游戏或者用户手动点击重置按钮
+            that.overEle.classList.remove('over');
+            if(that.numbers.length === 0 || flag){
+                that.score = 0;
+                that.maxNum = 0;
+                that.initNumberArray();
+                that.addNewNumber();
+                that.addNewNumber();
+            }
+            that.saveGameData();
+            that.render(true);
+        },
+        //初始化数组
+        initNumberArray(){
+            let that = this;
+            if(that.numbers.length > 0){
+                that.destroy();
+            }
+            for(let i = 0;i < 4; i ++){
+                let numArray = [];
+                for(let j = 0;j < 4; j ++){
+                    numArray.push([]);
+                }
+                that.numbers.push(numArray);
+            }
+        },
+        //彻底清空数字数组并删除所有dom
+        destroy(){
+            let that = this;
+            for(let i = 0;i < 4; i ++){
+                for(let j = 0;j < 4; j ++){
+                    if(that.numbers[i][j].length !== 0){
+                        that.numbers[i][j].forEach(item => {
+                            that.numberBox.removeChild(item.element);
+                        });
+                    }
+                }
+            }
+            that.numbers = [];
+        },
+        //保存相关数据到本地存储，用来恢复游戏数据
+        saveGameData(){
+            let that = this;
+            let numbers = that.copyStack();
+            that.clearArray(numbers);
+            let gameData = {
+                score:that.score,
+                maxNum:that.maxNum,
+                numbers,
+            };
+            localStorage.setItem('game_2048',JSON.stringify(gameData));
+        },
+        //跳过dom元素对位置数组进行拷贝，在判断结束游戏和保存游戏数据时用到
+        copyStack(){
+            let that = this;
+            let result = [];
+            let numbers = that.numbers;
+            for(let i = 0; i < numbers.length; i ++){
+                let numArray = [];
+                for(let j = 0;j < numbers[i].length; j ++){
+                    if(numbers[i][j].length === 0){
+                        numArray.push([]);
+                    }else{
+                        let arr = [];
+                        numbers[i][j].forEach(item => {
+                            arr.push({
+                                number:item.number,
+                                type:item.type
+                            });
+                        });
+                        numArray.push(arr);
+                    }
+                }
+                result.push(numArray);
+            }
+            return result;
+        },
+        //键盘控制
+        addListener(){
+            let that = this;
+            document.body.addEventListener('keydown',e => {
+                let score = that.handleKeyEvent(e.keyCode,null,true);
+                if(score > -1){
+                    that.score += score;
+                    that.addNewNumber();
+                    that.saveGameData();
+                    that.render();
+                    let gameOver = that.isGameOver();
+                    if(gameOver){
+                        that.overEle.classList.add('over');
+                    }else{
+                        that.overEle.classList.remove('over');
+                    }
+                }
+                // console.log(that.handleKeyEvent(e));
+            },false);
+
+            that.newEle.addEventListener('click', e => {
+                that.newGame(true);
+            }, false);
+
+            that.resetEle.addEventListener('click', e => {
+                that.newGame(true);
+            }, false);
+        },
+        handleKeyEvent(keyCode,numberArray,flag){
+            // keyCode
+            // 38 上
+            // 40 下
+            // 37 左
+            // 39 右
+            // flag true 真实移动
+            // flag false game over判断
+            let that = this;
+            let moveStack = null;
+            // 获取移动轨迹数组
+            for(let i = 0; i < 4; i ++){
+                if(that.moveStack[i].keyCode === keyCode){
+                    moveStack = that.moveStack[i].stack;
+                    i = 4;
+                }
+            }
+            //按照轨迹数组移动，合并
+            let moved = false;
+            if(moveStack){
+                if(flag){
+                    that.clearArray(that.numbers);
+                }
+                let result;
+                let score = 0;
+                let numbers = numberArray || that.numbers;
+                for(let i = 0; i < moveStack.length; i ++){
+                    let positionArray = moveStack[i];
+                    for(let j = 0; j < positionArray.length; j ++){
+                        if(numbers[positionArray[j][0]][positionArray[j][1]].length > 0){
+                            result = that.move(positionArray,j,numbers);
+                            if(result[1]){
+                                moved = true;
+                                if(!flag && moved){
+                                    // console.log('yes');
+                                    return 1;
+                                }
+                            }
+                            score += result[0];
+                        }
+                    }
+                }
+                if(moved){
+                    return score;
+                }else{
+                    return -1
+                }
+            }else{
+                return -1;
+            }
+        },
+        move(positionArray,index,numberArray){
+            if(index === 0){
+                return [0,false];
+            }
+            let that = this;
+            let result = [0,false];  // [本次移动的得分，是否有移动格子]
+            let numbers = numberArray || that.numbers;
+            // console.log(positionArray[index]);
+            let currentP = numbers[positionArray[index][0]][positionArray[index][1]];
+            let target = index;
+            for(let i = index - 1;i > -1; i --){
+                let p = numbers[positionArray[i][0]][positionArray[i][1]];
+                if(p.length > 0){
+                    // console.log(p);
+                    // console.log(currentP);
+                    if(p.length === 1 && p[0].number === currentP[0].number){
+                        target = i;
+                        p.push(currentP[0]);
+                        let score = parseInt(currentP[0].number * 2);
+                        p.splice(0,0,{
+                            number:score,
+                            type:'merge'
+                        });
+                        currentP.splice(0,1);
+                        if(score > that.maxNum){
+                            that.maxNum = score;
+                        }
+                        return [score,true];
+                    }else{
+                        i = -1;
+                    }
+                }else{
+                    target = i;
+                }
+            }
+            if(target !== index){
+                let p = numbers[positionArray[target][0]][positionArray[target][1]];
+                p.push(currentP[0]);
+                currentP.splice(0,1);
+                return [0,true];
+            }else{
+                return [0,false]
+            }
+        },
+        //清理数组，将new标识和merge标识去掉，并且删掉多余的dom
+        clearArray(numberArray){
+            let that = this;
+            numberArray.forEach(row => {
+                row.forEach(box => {
+                    if(box.length > 0){
+                        if(box.length === 3){
+                            box.forEach((item, index) => {
+                                if(index > 0){
+                                    if(item.element){
+                                        that.numberBox.removeChild(item.element);
+                                    }
+                                }else{
+                                    if(item.element){
+                                        item.element.classList.remove('num-merge');
+                                    }
+                                    item.type = 'normal';
+                                }
+                            });
+                            box.splice(1,2);
+                        }else{
+                            if(box[0].element){
+                                box[0].element.classList.remove('num-new');
+                            }
+                            box[0].type = 'normal';
+                        }
+                    }
+                });
+            });
+        },
+        //生成新的数字
+        addNewNumber(){
+            let that = this;
+            let emptyArray = [];
+            for(let i = 0;i < 4; i ++){
+                for(let j = 0;j < 4; j ++){
+                    if(that.numbers[i][j].length === 0){
+                        emptyArray.push([i,j]);
+                    }
+                }
+            }
+            // console.log(emptyArray);
+            let position = emptyArray[randomNum(0,emptyArray.length -1)];
+            let num = 2;
+            if(randomNum(0,9) > 7){
+                num = 4;
+            }
+            if(num > that.maxNum){
+                that.maxNum = num;
+            }
+            that.numbers[position[0]][position[1]].push({
+                number:num,
+                type:'new'
+            });
+        },
+        //渲染函数
+        render(flag){
+            // flag true 首次渲染
+            let that = this;
+            // console.log(that.numbers);
+            for(let i = 0;i < 4; i ++){
+                for(let j = 0;j < 4; j ++){
+                    if(that.numbers[i][j].length !== 0){
+                        let itemArray = that.numbers[i][j];
+                        itemArray.forEach(item => {
+                            let position = [j + 1,i + 1];
+                            let className = `num n-${item.number} p-${position[0]}-${position[1]}`;
+                            if(item.type === 'new' || item.type === 'merge' || flag){
+                                className += ' num-' + item.type;
+                                item.element = document.createElement('div');
+                                item.element.innerHTML = `<div class="num-inner">${item.number}</div>`;
+                                item.element.className = className;
+                                item.vClassName = className;
+                                that.numberBox.appendChild(item.element);
+                            }else if(item.vClassName !== className){
+                                item.element.className = className;
+                                item.vClassName = className;
+                            }
+                        });
+                    }
+                }
+            }
+            that.updatePanel();
+        },
+        updatePanel(){
+            let that = this;
+            that.scoreEle.innerHTML = that.score;
+            that.maxEle.innerHTML = that.maxNum;
+        },
+        isGameOver(){
+            let that = this;
+            let numbers = that.copyStack();
+            that.clearArray(numbers);
+            //console.log(numbers);
+            let direction = [38,40,37,39];
+            let over = true;
+            for(let i = 0; i < 4; i ++){
+                if(that.handleKeyEvent(direction[i],JSON.parse(JSON.stringify(numbers)),false) !== -1){
+                    i = 4;
+                    over = false;
+                }
+            }
+
+            return over;
+        },
+    };
+
+    let gameData,myGame;
+    let stringData = localStorage.getItem('game_2048');
+    if(stringData && stringData!== ''){
+        gameData = JSON.parse(stringData);
+        myGame = new Game({
+            numberBox:document.querySelector('.num-box'),
+            scoreEle:document.querySelector('.game-score'),
+            maxEle:document.querySelector('.game-max'),
+            newEle:document.querySelector('.btn-new'),
+            resetEle:document.querySelector('.btn-reset'),
+            overEle:document.querySelector('.game-over'),
+            numbers:gameData.numbers,
+            score:gameData.score,
+            maxNum:gameData.maxNum
+        });
+    }else{
+        myGame = new Game({
+            numberBox:document.querySelector('.num-box'),
+            scoreEle:document.querySelector('.game-score'),
+            maxEle:document.querySelector('.game-max'),
+            newEle:document.querySelector('.btn-new'),
+            resetEle:document.querySelector('.btn-reset'),
+            overEle:document.querySelector('.game-over')
+        });
+    }
+
+</script>
+</body>
+</html>
