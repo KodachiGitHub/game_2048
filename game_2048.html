@@ -389,30 +389,21 @@
 
     let gameData,myGame;
     let stringData = localStorage.getItem('game_2048');
+    let option = {
+        numberBox:document.querySelector('.num-box'),
+        scoreEle:document.querySelector('.game-score'),
+        maxEle:document.querySelector('.game-max'),
+        newEle:document.querySelector('.btn-new'),
+        resetEle:document.querySelector('.btn-reset'),
+        overEle:document.querySelector('.game-over'),
+    };
     if(stringData && stringData!== ''){
         gameData = JSON.parse(stringData);
-        myGame = new Game({
-            numberBox:document.querySelector('.num-box'),
-            scoreEle:document.querySelector('.game-score'),
-            maxEle:document.querySelector('.game-max'),
-            newEle:document.querySelector('.btn-new'),
-            resetEle:document.querySelector('.btn-reset'),
-            overEle:document.querySelector('.game-over'),
-            numbers:gameData.numbers,
-            score:gameData.score,
-            maxNum:gameData.maxNum
-        });
-    }else{
-        myGame = new Game({
-            numberBox:document.querySelector('.num-box'),
-            scoreEle:document.querySelector('.game-score'),
-            maxEle:document.querySelector('.game-max'),
-            newEle:document.querySelector('.btn-new'),
-            resetEle:document.querySelector('.btn-reset'),
-            overEle:document.querySelector('.game-over')
-        });
+        option.numbers = gameData.numbers;
+        option.score = gameData.score;
+        option.maxNum = gameData.maxNum;
     }
-
+    myGame = new Game(option);
 </script>
 </body>
 </html>
